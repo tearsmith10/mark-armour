@@ -1,0 +1,10 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "ironclad-armory.vercel.app" }],
+      "destination": "https://mark-armour.vercel.app/:path*",
+      "permanent": true
+    }
+  ]
+}

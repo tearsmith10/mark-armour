@@ -1,0 +1,19 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    allowedHosts: true,
+    proxy: {
+      // Proxy Ollama through Vite to avoid CORS issues.
+      // App calls /ollama/* -> forwarded to http://localhost:11434/*
+      '/ollama': {
+        target: 'http://localhost:11434',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ollama/, ''),
+      },
+    },
+  },
+})

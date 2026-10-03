@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noUnusedLocals": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/main.js",
+    "src/agent/**/*.js",
+    "src/llm/**/*.js",
+    "src/tools/**/*.js",
+    "src/code/**/*.js",
+    "src/config/**/*.js",
+    "src/logging/**/*.js",
+    "src/utils/**/*.js",
+    "tests/**/*.js"
+  ],
+  "exclude": ["node_modules", "dist", "ironclad-armory"]
+}

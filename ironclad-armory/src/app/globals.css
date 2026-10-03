@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme palettes ───────────────────────────────────────────
+   Component channels consumed as rgb(var(--…) / <alpha-value>).
+   Dark is the default; [data-theme="light"] remaps the same
+   variables so every utility flips together (colors, shadows,
+   grid background) while blaze stays the brand constant.      */
+:root {
+  color-scheme: dark;
+
+  --c-ink-950: 7 9 8;
+  --c-ink-900: 11 14 12;
+  --c-ink-850: 15 19 17;
+  --c-ink-800: 19 24 21;
+  --c-ink-700: 27 34 30;
+  --c-ink-600: 39 48 43;
+
+  --c-olive-300: 199 210 163;
+  --c-olive-400: 169 185 124;
+  --c-olive-500: 138 154 94;
+  --c-olive-600: 111 125 75;
+  --c-olive-700: 86 95 59;
+
+  --c-stone-100: 245 245 244;
+  --c-stone-200: 231 229 228;
+  --c-stone-300: 214 211 209;
+  --c-stone-400: 168 162 158;
+  --c-stone-500: 120 113 108;
+  --c-stone-600: 87 83 78;
+
+  --c-red-300: 252 165 165;
+  --c-red-400: 248 113 113;
+  --c-red-500: 239 68 68;
+
+  --c-onbrand: 20 17 10;
+
+  --grid-line: rgba(255, 255, 255, 0.015);
+  --grid-glow: rgba(245, 158, 11, 0.07);
+  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 20px 50px -20px rgba(0, 0, 0, 0.8);
+  --shadow-glow: 0 0 40px -10px rgba(245, 158, 11, 0.35);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --c-ink-950: 247 244 238; /* warm paper page */
+  --c-ink-900: 255 253 248; /* cards */
+  --c-ink-850: 241 237 228;
+  --c-ink-800: 238 233 223; /* inset panels */
+  --c-ink-700: 221 214 200; /* borders */
+  --c-ink-600: 185 177 160; /* strong borders / inputs */
+
+  --c-olive-300: 74 84 48;
+  --c-olive-400: 85 97 53;
+  --c-olive-500: 97 109 60;
+  --c-olive-600: 109 122 68;
+  --c-olive-700: 124 138 81;
+
+  --c-stone-100: 28 25 20; /* headings */
+  --c-stone-200: 47 43 35;
+  --c-stone-300: 69 64 54; /* body */
+  --c-stone-400: 107 101 89;
+  --c-stone-500: 125 119 104;
+  --c-stone-600: 152 145 127;
+
+  --c-red-300: 185 28 28;
+  --c-red-400: 220 38 38;
+  --c-red-500: 239 68 68;
+
+  --grid-line: rgba(28, 25, 20, 0.045);
+  --grid-glow: rgba(245, 158, 11, 0.1);
+  --shadow-panel: 0 0 0 1px rgba(28, 25, 20, 0.07), 0 20px 44px -26px rgba(28, 25, 20, 0.3);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ink-950 text-stone-300 font-body antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--grid-glow), transparent),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, 48px 48px, 48px 48px;
+}
+
+::selection {
+  @apply bg-blaze-500;
+  color: rgb(var(--c-onbrand));
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-none px-5 py-3 text-sm font-bold uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-blaze-500 text-onbrand hover:bg-blaze-400 active:translate-y-px;
+  }
+  .btn-ghost {
+    @apply btn border border-ink-600 text-stone-300 hover:border-blaze-500 hover:text-blaze-400;
+  }
+  .btn-dark {
+    @apply btn bg-ink-800 text-stone-200 hover:bg-ink-700;
+  }
+
+  .input {
+    @apply w-full border border-ink-600 bg-ink-900 px-4 py-3 text-sm text-stone-200 outline-none transition-colors placeholder:text-stone-600 focus:border-blaze-500;
+  }
+  .label {
+    @apply mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-olive-500;
+  }
+
+  .card {
+    @apply border border-ink-700 bg-ink-900 shadow-panel;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 border border-ink-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-stone-400 transition-colors hover:border-olive-500 hover:text-olive-400;
+  }
+  .chip-active {
+    @apply border-blaze-500 bg-blaze-500/10 text-blaze-400;
+  }
+
+  .badge {
+    @apply inline-block px-2 py-0.5 text-[10px] font-black uppercase tracking-widest;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ── FAQ accordion ───────────────────────────────────────────
+   Collapsible answers: the grid-row trick animates height
+   without measuring JS, and keeps layout flow in both themes. */
+.faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms ease;
+}
+.faq-panel.is-open {
+  grid-template-rows: 1fr;
+}
+.faq-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Mobile menu ───────────────────────────────────────────── */
+@keyframes ma-menu-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+#mobile-menu [role="dialog"] {
+  animation: ma-menu-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Sticky in-page headers (FAQ / privacy / terms) clear the site header. */
+section[id],
+[id^="faq-"] {
+  scroll-margin-top: 7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .faq-panel {
+    transition: none;
+  }
+  #mobile-menu [role="dialog"] {
+    animation: none;
+  }
+}

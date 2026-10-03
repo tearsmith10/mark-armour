@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+.data
+.env
+.env.local
+.env.*.local
+*.log
+.vercel
+next-env.d.ts
+
+.vercel
+.env*
