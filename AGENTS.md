@@ -83,6 +83,9 @@ to touch files that were modified after that run.
 - **This shell mangles double quotes** (they reach cmd as `\"…\"`): prefer no quotes
   (use the `workdir` parameter and `set PATH=...` unquoted) or write temp scripts and
   run them with `node <path>`.
+- **Never put a space before `&` after `set PATH=...;%PATH%`** — the trailing space
+  corrupts the *last* PATH entry (here: `%APPDATA%\npm`, i.e. the `office-agent`
+  command vanishes while `where office-agent` still finds it). Write `…;%PATH%&`.
 
 ## When you are done
 
