@@ -201,6 +201,10 @@ Keys come from the environment only (`.env.example` documents them; `.env` is gi
   command timeouts with full process-tree kill (so no orphaned children lock directories).
 - Loop guard: three identical consecutive tool calls stop the run (a model that keeps
   re-issuing the same write cannot burn the budget), and the prompt forbids repeats.
+- Auto-finish: if the guard or budget stops a stuck model **but** every planned step
+  ran, validation is green and the planned mutation succeeded, the executor finishes
+  itself (recorded as `Auto-finish (…)`) instead of reporting `partial` — so local
+  models that never say `{"done": true}` still end successful runs with exit 0.
 - Every run is recorded to `.agent/runs/<id>.json` (task, plan, actions, errors, validation,
   review, status) and logged to `.agent/logs/agent.log`.
 - Approval gate (`-i`): the plan is printed and execution waits for an explicit yes; EOF or
@@ -212,7 +216,7 @@ Keys come from the environment only (`.env.example` documents them; `.env` is gi
 ## Verification
 
 ```sh
-npm run verify      # typecheck (tsc --checkJs) && 97 tests && vite build
+npm run verify      # typecheck (tsc --checkJs) && 101 tests && vite build
 npm run typecheck   # JSDoc types across the agent subsystem + tests
 npm test            # node --test, no extra dependencies
 npm run build       # the existing React app must keep building

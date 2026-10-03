@@ -99,13 +99,20 @@ tsconfig.json            scoped to the agent dirs + tests (checkJs, noEmit, stri
 
 | Status | Meaning | Exit code |
 |---|---|---|
-| `success` | executor finished **and** validation is green | 0 |
-| `partial` | validation is green but autonomy stopped early (LLM unreachable, action budget, or a detected model loop) — honest "inspected, not fully executed" | 1 |
+| `success` | executor finished **and** validation is green — including the auto-finish case below | 0 |
+| `partial` | validation is green but autonomy stopped early **without** the auto-finish conditions (LLM unreachable, plan incomplete, validation never ran, or the planned mutation never succeeded) — honest "inspected, not fully executed" | 1 |
 | `failed` | validation is red, or a fatal error occurred | 1 |
 | `dry-run` | `--dry-run`: plan only, nothing executed | 0 |
 
 A `dry-run` can never be reported as `success`: the reporter is forced to the dry-run
 status and its "changes"/"validation" sections are blanked.
+
+**Auto-finish**: small models often never emit `{"done": true}`. When the loop guard or
+the action budget stops a stuck model, the executor finishes on its own **only if** every
+planned step executed, project validation passed, and (for plans meant to change files) a
+`write_file`/`edit_file` succeeded. It records `Auto-finish (loop|budget): …` in
+`record.errors` so the report always says it happened. LLM/infrastructure failures never
+auto-finish — those stay `partial`.
 
 ### Loop guards (executor)
 
@@ -255,11 +262,13 @@ removed from the joined task. The entry-point guard compares **realpaths**, beca
 1. **Typecheck** — `tsc -p tsconfig.json` with `allowJs`/`checkJs`/`strict` over the agent
    subsystem and tests (the React app is out of scope: it has no type setup and adding one
    would mean touching app files).
-2. **Tests** — `node --test tests/**/*.test.js` (97 tests): registry contract, path/command
+2. **Tests** — `node --test tests/**/*.test.js` (101 tests): registry contract, path/command
    safety, filesystem tool round-trips, command runner + timeouts, planner fallback, budget
    enforcement, repair loop (fix, give-up, offline), full lifecycle in a temp workspace,
    dry-run, approval gate (approve / reject / non-interactive), crash-record invariants,
    redaction, **executor loop guard** (identical repeats stop early, distinct calls don't),
+   **auto-finish rules** (stuck model + completed plan + green validation + successful
+   mutation → success; any missing condition → partial),
    **adapter contract tests against a local HTTP server** (Ollama `/api/chat`,
    OpenAI `/chat/completions`, Anthropic `/v1/messages` — payloads, auth headers, system
    extraction, error mapping, timeouts), **doctor** (healthy, allow-unsafe, keyless
@@ -274,13 +283,14 @@ removed from the joined task. The entry-point guard compares **realpaths**, beca
 - **Git unavailable on this machine**: `git_status`/`git_diff` return structured errors
   ("install Git or run git init"), and the review stage falls back to the action log. No
   `git init` was performed (would change repo state without authorization).
-- **Ollama runs, but slowly, and `llama3.2:latest` (2B) rarely emits `{"done": true}`**:
-  planner calls take minutes and full runs often end `partial` (exit 1) — validation is
-  green and the loop guard stops repeats early, but the model never declares completion,
-  so the user is asked to review. This is deliberate: `partial` is the honest signal for
-  "autonomy stopped before the model finished". Offline degradation to a heuristic plan
-  is still exercised by tests. No cloud keys are set, so the OpenAI/Anthropic adapters
-  are verified against a local contract-test server, not the real APIs.
+- **Ollama runs, but slowly, and small models rarely emit `{"done": true}`**: the
+  configured model is `qwen2.5-coder:3b` on CPU — planner calls take minutes, and models
+  tend to repeat themselves instead of declaring completion. The loop guard stops repeats
+  early and the auto-finish rule (plan complete + validation green + mutation succeeded)
+  turns those runs into `success`; when the conditions are not all met the run ends
+  `partial` (exit 1) and the user is asked to review. Offline degradation to a heuristic
+  plan is still exercised by tests. No cloud keys are set, so the OpenAI/Anthropic
+  adapters are verified against a local contract-test server, not the real APIs.
 - **Heuristic fallback inspects but does not invent**: when the model is down the agent runs
   a read/search/validate plan; it will not fabricate code changes.
 - **Single-run scope**: no cross-run memory beyond `.agent/runs/` records, no background

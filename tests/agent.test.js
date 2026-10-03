@@ -164,6 +164,174 @@ test('executor prompt forbids repeating a completed tool call', () => {
   assert.match(text, /"done": true/)
 })
 
+test('auto-finish: a stuck model still finishes when the plan ran and validation passed', async (t) => {
+  const root = await makeProject()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const settings = settingsFor(root, { agent: { maxSteps: 20 } })
+  const memory = new Memory({ task: 'create hello.txt', workspaceRoot: root })
+
+  const same = JSON.stringify({ reasoning: 'write it', tool: 'write_file', args: { path: 'hello.txt', content: 'hi' } })
+  const llm = mockAdapter({ script: Array(6).fill(same) })
+  const runTool = async (/** @type {string} */ name) => ok(`ran ${name}`)
+
+  const result = await executePlan({
+    task: 'create hello.txt',
+    context: '(ctx)',
+    plan: {
+      strategy: 's',
+      origin: 'llm',
+      steps: [
+        { goal: 'write the file', tool: 'write_file', args: { path: 'hello.txt', content: 'hi' } },
+        { goal: 'validate', tool: 'run_tests', args: {} },
+      ],
+    },
+    llm,
+    tools: [],
+    runTool,
+    memory,
+    settings,
+    logger: silentLogger(),
+  })
+
+  assert.equal(result.done, true, 'green plan + stuck model must still finish')
+  const errors = memory.record.errors.join(' | ')
+  assert.match(errors, /Loop detected/, 'the stop reason stays visible in the record')
+  assert.match(errors, /Auto-finish \(loop\)/, 'and the auto-finish is declared explicitly')
+  assert.match(memory.record.summary ?? '', /auto-finished/)
+})
+
+test('auto-finish refuses without validation or a successful mutation', async (t) => {
+  const root = await makeProject()
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  const same = JSON.stringify({ reasoning: 'peek', tool: 'read_file', args: { path: 'hello.txt' } })
+
+  // Case 1: no validation ever ran → partial.
+  {
+    const settings = settingsFor(root, { agent: { maxSteps: 20 } })
+    const memory = new Memory({ task: 'no validation', workspaceRoot: root })
+    const llm = mockAdapter({ script: Array(6).fill(same) })
+    const result = await executePlan({
+      task: 'no validation',
+      context: '(ctx)',
+      plan: { strategy: 's', origin: 'llm', steps: [{ goal: 'write', tool: 'write_file', args: { path: 'hello.txt', content: 'hi' } }] },
+      llm,
+      tools: [],
+      runTool: async (/** @type {string} */ name) => ok(`ran ${name}`),
+      memory,
+      settings,
+      logger: silentLogger(),
+    })
+    assert.equal(result.done, false, 'never claim done without validation')
+    const errors = memory.record.errors.join(' | ')
+    assert.match(errors, /Loop detected/)
+    assert.ok(!/Auto-finish/.test(errors))
+  }
+
+  // Case 2: the plan was meant to change files but the mutation failed → partial.
+  {
+    const settings = settingsFor(root, { agent: { maxSteps: 20 } })
+    const memory = new Memory({ task: 'mutation failed', workspaceRoot: root })
+    const llm = mockAdapter({ script: Array(6).fill(same) })
+    const result = await executePlan({
+      task: 'mutation failed',
+      context: '(ctx)',
+      plan: {
+        strategy: 's',
+        origin: 'llm',
+        steps: [
+          { goal: 'edit', tool: 'edit_file', args: { path: 'hello.txt', oldText: '', newText: 'hi' } },
+          { goal: 'validate', tool: 'run_tests', args: {} },
+        ],
+      },
+      llm,
+      tools: [],
+      runTool: async (/** @type {string} */ name) =>
+        name === 'edit_file' ? err('oldText must be a non-empty string') : ok('ran'),
+      memory,
+      settings,
+      logger: silentLogger(),
+    })
+    assert.equal(result.done, false, 'a failed plan mutation can never be papered over')
+    assert.ok(!/Auto-finish/.test(memory.record.errors.join(' | ')))
+  }
+})
+
+test('auto-finish also applies when the action budget stops the run', async (t) => {
+  const root = await makeProject()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const settings = settingsFor(root, { agent: { maxSteps: 4 } })
+  const memory = new Memory({ task: 'budget stop', workspaceRoot: root })
+
+  let n = 0
+  const llm = /** @type {any} */ ({
+    id: 'varied',
+    model: 'x',
+    complete: async () => JSON.stringify({ reasoning: 'look', tool: 'list_files', args: { path: '.', attempt: n++ } }),
+  })
+
+  const result = await executePlan({
+    task: 'budget stop',
+    context: '(ctx)',
+    plan: {
+      strategy: 's',
+      origin: 'llm',
+      steps: [
+        { goal: 'write', tool: 'write_file', args: { path: 'hello.txt', content: 'hi' } },
+        { goal: 'validate', tool: 'run_tests', args: {} },
+      ],
+    },
+    llm,
+    tools: [],
+    runTool: async (/** @type {string} */ name) => ok(`ran ${name}`),
+    memory,
+    settings,
+    logger: silentLogger(),
+  })
+
+  assert.equal(result.done, true)
+  const errors = memory.record.errors.join(' | ')
+  assert.match(errors, /Action budget exhausted/)
+  assert.match(errors, /Auto-finish \(budget\)/)
+})
+
+test('an LLM failure mid-execution never auto-finishes', async (t) => {
+  const root = await makeProject()
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const settings = settingsFor(root, { agent: { maxSteps: 20 } })
+  const memory = new Memory({ task: 'llm dies', workspaceRoot: root })
+  const llm = /** @type {any} */ ({
+    id: 'broken',
+    model: 'x',
+    complete: async () => {
+      throw new Error('connection refused')
+    },
+  })
+
+  const result = await executePlan({
+    task: 'llm dies',
+    context: '(ctx)',
+    plan: {
+      strategy: 's',
+      origin: 'llm',
+      steps: [
+        { goal: 'write', tool: 'write_file', args: { path: 'hello.txt', content: 'hi' } },
+        { goal: 'validate', tool: 'run_tests', args: {} },
+      ],
+    },
+    llm,
+    tools: [],
+    runTool: async (/** @type {string} */ name) => ok(`ran ${name}`),
+    memory,
+    settings,
+    logger: silentLogger(),
+  })
+
+  assert.equal(result.done, false, 'infrastructure failure stays partial, never success')
+  assert.match(memory.record.errors.join(' | '), /LLM call failed/)
+  assert.ok(!/Auto-finish/.test(memory.record.errors.join(' | ')))
+})
+
 test('executor stops at the action budget instead of looping forever', async (t) => {
   const root = await makeProject()
   t.after(() => rm(root, { recursive: true, force: true }))

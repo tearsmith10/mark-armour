@@ -58,8 +58,38 @@ export async function executePlan({
   let lastSignature = ''
   let identicalRun = 0
 
+  /** True once a write_file/edit_file call actually succeeded this run. */
+  let mutatedOk = false
+  /** True when the plan itself was supposed to change files. */
+  const planMutating = plan.steps.some((s) => s.tool === 'write_file' || s.tool === 'edit_file')
+
   /** @type {string[]} */
   const failureNotes = []
+
+  /**
+   * Stopping because the model is stuck is not automatically a failure. When
+   * every planned step ran, project validation is green, and (if the plan was
+   * meant to change files) a mutation succeeded, finishing is the honest
+   * outcome — the model's silence about a completed, verified task should not
+   * send the user off to review green work. Anything less stays `partial`.
+   * @param {'loop'|'budget'} stopKind
+   * @param {string} stopDetail what stopped the run (already recorded as an error)
+   * @returns {boolean} true when the executor may finish on its own
+   */
+  const tryAutoFinish = (stopKind, stopDetail) => {
+    const planComplete = stepsDone >= plan.steps.length
+    const validated = Boolean(lastValidation?.ok)
+    const mutated = mutatedOk || !planMutating
+    if (!(planComplete && validated && mutated)) return false
+    const note =
+      `Auto-finish (${stopKind}): ${stopDetail} — every planned step executed, ` +
+      `validation passed${mutatedOk ? ' and a file mutation succeeded' : ''}, ` +
+      `so the executor is finishing instead of reporting partial.`
+    log.warn('executor:auto-finish', { stopKind, actions })
+    memory.recordError(note)
+    memory.setSummary(`auto-finished: plan complete, validation green (${stopKind} stop)`)
+    return true
+  }
 
   while (actions < maxSteps) {
     // 1. Run any planned tool steps that are next in line.
@@ -70,6 +100,7 @@ export async function executePlan({
       actions++
       trackAction(memory, { tool: step.tool, args: step.args ?? {}, result, note: `plan: ${step.goal}` })
       if (step.tool === 'run_tests') lastValidation = result
+      if (result.ok && (step.tool === 'write_file' || step.tool === 'edit_file')) mutatedOk = true
       if (!result.ok) failureNotes.push(`step "${step.goal}" failed: ${result.error}`)
       continue
     }
@@ -112,11 +143,14 @@ export async function executePlan({
     if (signature === lastSignature) {
       identicalRun++
       if (identicalRun >= maxIdentical) {
+        const detail =
+          `${identicalRun + 1} identical consecutive ${decision.tool} calls with no new ` +
+          `information — stopping to stay in control. Check whether the task is already complete.`
         log.warn('executor:loop-detected', { tool: decision.tool, repeats: identicalRun + 1 })
-        memory.recordError(
-          `Loop detected: ${identicalRun + 1} identical consecutive ${decision.tool} calls with no new ` +
-            `information — stopping to stay in control. Check whether the task is already complete.`,
-        )
+        memory.recordError(`Loop detected: ${detail}`)
+        if (tryAutoFinish('loop', `loop detected: ${detail}`)) {
+          return { done: true, lastValidation, actions }
+        }
         return { done: false, lastValidation, actions }
       }
     } else {
@@ -134,11 +168,16 @@ export async function executePlan({
       note: decision.reasoning,
     })
     if (decision.tool === 'run_tests') lastValidation = result
+    if (result.ok && (decision.tool === 'write_file' || decision.tool === 'edit_file')) mutatedOk = true
     if (!result.ok) failureNotes.push(`${decision.tool} failed: ${result.error}`)
   }
 
+  const budgetDetail = `action budget exhausted (${maxSteps} steps)`
   log.warn('executor:step-budget', { actions, maxSteps })
   memory.recordError(`Action budget exhausted (${maxSteps} steps) — stopping to stay in control.`)
+  if (tryAutoFinish('budget', budgetDetail)) {
+    return { done: true, lastValidation, actions }
+  }
   return { done: false, lastValidation, actions }
 }
 
