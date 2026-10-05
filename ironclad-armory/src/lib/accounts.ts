@@ -62,14 +62,11 @@ function resetUrl(token: string) {
   return `${config.siteUrl}/reset-password?token=${encodeURIComponent(token)}`;
 }
 
-/** Fire-and-forget wrapper — never breaks the caller's flow. */
-function queueMail(input: { to: string; subject: string; text: string; html?: string }) {
-  sendMail(input).catch((err) => console.error("email send failed:", err));
-}
-
 async function sendVerification(email: string, name: string | null, token: string) {
   const url = verifyUrl(token);
-  queueMail({
+  // Awaited on purpose: serverless invocations freeze as soon as the response
+  // is sent, so a fire-and-forget send would silently never leave the box.
+  await sendMail({
     to: email,
     subject: "Verify your email — MARK-ARMOUR",
     text: [
@@ -95,7 +92,7 @@ async function sendVerification(email: string, name: string | null, token: strin
 
 async function sendPasswordReset(email: string, name: string | null, token: string) {
   const url = resetUrl(token);
-  queueMail({
+  await sendMail({
     to: email,
     subject: "Reset your password — MARK-ARMOUR",
     text: [

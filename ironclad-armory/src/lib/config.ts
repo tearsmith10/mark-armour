@@ -30,10 +30,17 @@ export const config = {
     return !!(process.env.YAHOO_CLIENT_ID && process.env.YAHOO_CLIENT_SECRET);
   },
   get siteUrl() {
-    return (
-      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-      "http://localhost:3000"
-    );
+    const explicit = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+    if (explicit) return explicit;
+    // On Vercel, never fall back to localhost: verification/reset links must
+    // point at the real deployment even if NEXT_PUBLIC_SITE_URL was not set.
+    // VERCEL_PROJECT_PRODUCTION_URL is the stable *.vercel.app host; VERCEL_URL
+    // is the per-deployment host (previews).
+    const vercelHost =
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+      (process.env.VERCEL ? process.env.VERCEL_URL : "");
+    if (vercelHost) return `https://${vercelHost}`;
+    return "http://localhost:3000";
   },
   /** Everything needed for a fully live store is present. */
   get isLive() {
