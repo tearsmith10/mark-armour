@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.markarmour.app",
+      "sha256_cert_fingerprints": [
+        "5B:8D:6D:FA:6B:79:01:6F:5A:8E:CA:E7:9C:AC:1E:F0:95:3C:67:A0:5F:13:4D:0A:40:E8:35:3E:E3:7A:97:EE"
+      ]
+    }
+  }
+]
