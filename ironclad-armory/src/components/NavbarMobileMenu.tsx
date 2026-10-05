@@ -194,17 +194,26 @@ export default function NavbarMobileMenu({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3">
+                <div className="space-y-3">
                   <p className="text-xs text-stone-500">
                     18+ · ID verified at checkout
                   </p>
-                  <Link
-                    href="/login"
-                    onClick={() => setOpen(false)}
-                    className="btn-primary !px-4 !py-2 !text-[11px]"
-                  >
-                    Sign in
-                  </Link>
+                  <div className="flex items-stretch gap-2">
+                    <Link
+                      href="/login"
+                      onClick={() => setOpen(false)}
+                      className="btn-ghost flex-1 !px-4 !py-2.5 !text-[11px]"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      href="/signup"
+                      onClick={() => setOpen(false)}
+                      className="btn-primary flex-1 !px-4 !py-2.5 !text-[11px]"
+                    >
+                      Sign up
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>

@@ -90,12 +90,20 @@ export default async function Navbar() {
               </form>
             </div>
           ) : (
-            <Link
-              href="/login"
-              className="btn-primary hidden !px-4 !py-2 !text-[11px] md:inline-flex"
-            >
-              Sign in
-            </Link>
+            <div className="hidden items-center gap-2 md:flex">
+              <Link
+                href="/login"
+                className="btn-ghost !px-4 !py-2 !text-[11px]"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="btn-primary !px-4 !py-2 !text-[11px]"
+              >
+                Sign up
+              </Link>
+            </div>
           )}
 
           <NavbarMobileMenu
